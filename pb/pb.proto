@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package pmg_pb;
+
+option  go_package = "pmg-sample/pb";
+
+import "google/protobuf/wrappers.proto";
+
+service Catalogue {
+  rpc addItem(Item) returns (google.protobuf.UInt64Value);
+  rpc getItem(google.protobuf.UInt64Value) returns (Item);
+}
+
+message Item {
+  uint64 id = 1;
+  string title = 2;
+  string description = 3;
+  float price = 4;
+  bool stock = 5;
+}
