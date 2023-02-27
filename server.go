@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
+	"encoding/base64"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"log"
 	"net"
@@ -18,6 +21,12 @@ import (
 
 const (
 	dbUrl = "postgres://yourlogin:yourpass@localhost:5432/yourdb"
+)
+
+var (
+	errMissMetadata = status.Errorf(codes.InvalidArgument, "missing auth token")
+	errLoadCert     = status.Errorf(codes.FailedPrecondition, "cannot load ca-crt to pool")
+	errInvalidCreds = status.Errorf(codes.InvalidArgument, "invalid auth credentials")
 )
 
 type server struct {
@@ -43,6 +52,24 @@ func (s *server) AddItem(ctx context.Context, item *pb.Item) (*wrapperspb.UInt64
 	return &id, nil
 }
 
+func authorization(header []string) bool {
+	if header[0] == base64.StdEncoding.EncodeToString([]byte("root:root")) {
+		return true
+	}
+	return false
+}
+
+func unaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, errMissMetadata
+	}
+	if valid := authorization(md["authorization"]); valid {
+		return handler(ctx, req)
+	}
+	return nil, errInvalidCreds
+}
+
 func LoadTLSCredentials() (credentials.TransportCredentials, error) {
 	serverCert, err := tls.LoadX509KeyPair("crt/server/server.crt", "crt/server/server.key")
 	if err != nil {
@@ -56,7 +83,7 @@ func LoadTLSCredentials() (credentials.TransportCredentials, error) {
 
 	capool := x509.NewCertPool()
 	if !capool.AppendCertsFromPEM(ca) {
-		return nil, errors.New("cannot load ca-crt to pool")
+		return nil, errLoadCert
 	}
 
 	config := &tls.Config{
@@ -85,7 +112,7 @@ func main() {
 		log.Fatalf("cannot load tls certs: %v", err)
 	}
 
-	s := grpc.NewServer(grpc.Creds(creds))
+	s := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(unaryAuthInterceptor))
 	pb.RegisterCatalogueServer(s, &server{conn: conn})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
