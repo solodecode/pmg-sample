@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -13,6 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -25,7 +25,7 @@ const (
 
 var (
 	errMissMetadata = status.Errorf(codes.InvalidArgument, "missing auth token")
-	errLoadCert     = status.Errorf(codes.FailedPrecondition, "cannot load ca-crt to pool")
+	errLoadCert     = status.Errorf(codes.FailedPrecondition, "cannot load CA crt to pool")
 	errInvalidCreds = status.Errorf(codes.InvalidArgument, "invalid auth credentials")
 )
 
@@ -34,9 +34,36 @@ type server struct {
 	conn                            *pgx.Conn // db connection
 }
 
+func (s *server) AddListItem(stream pb.Catalogue_AddListItemServer) error {
+	var items []*pb.Item
+	// get items from client
+	for {
+		item, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		items = append(items, item)
+	}
+	// add items in table and return ID's
+	var id wrapperspb.UInt64Value
+	for _, v := range items {
+		if err := s.conn.QueryRow(stream.Context(), "insert into test (title, description, price, stock) values ($1, $2, $3, $4) returning id", &v.Title, &v.Description, &v.Price, &v.Stock).Scan(&id.Value); err != nil {
+			log.Printf("QueryRow failed: %v", err)
+			return err
+		}
+		if err := stream.Send(&id); err != nil {
+			log.Printf("cannot send id to client: %v", err)
+		}
+	}
+	return nil
+}
+
 func (s *server) GetItem(ctx context.Context, id *wrapperspb.UInt64Value) (*pb.Item, error) {
 	resp := &pb.Item{}
-	if err := s.conn.QueryRow(ctx, fmt.Sprintf("select * from test WHERE id=%d", id.Value)).Scan(&resp.Id, &resp.Title, &resp.Description, &resp.Price, &resp.Stock); err != nil {
+	if err := s.conn.QueryRow(ctx, "select * from test where id=$1", id.Value).Scan(&resp.Id, &resp.Title, &resp.Description, &resp.Price, &resp.Stock); err != nil {
 		log.Printf("QueryRow failed: %v", err)
 		return nil, err
 	}
@@ -45,7 +72,7 @@ func (s *server) GetItem(ctx context.Context, id *wrapperspb.UInt64Value) (*pb.I
 
 func (s *server) AddItem(ctx context.Context, item *pb.Item) (*wrapperspb.UInt64Value, error) {
 	var id wrapperspb.UInt64Value
-	if err := s.conn.QueryRow(ctx, fmt.Sprintf("insert into test (title, description, price, stock) values ('%s', '%s', %f, %t) RETURNING id", item.Title, item.Description, item.Price, item.Stock)).Scan(&id.Value); err != nil {
+	if err := s.conn.QueryRow(ctx, "insert into test (title, description, price, stock) values ($1, $2, $3, $4) returning id", &item.Title, &item.Description, &item.Price, &item.Stock).Scan(&id.Value); err != nil {
 		log.Printf("QueryRow failed: %v", err)
 		return nil, err
 	}
@@ -114,7 +141,7 @@ func main() {
 
 	s := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(unaryAuthInterceptor))
 	pb.RegisterCatalogueServer(s, &server{conn: conn})
-	if err := s.Serve(lis); err != nil {
+	if err = s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }

@@ -25,6 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 type CatalogueClient interface {
 	AddItem(ctx context.Context, in *Item, opts ...grpc.CallOption) (*wrapperspb.UInt64Value, error)
 	GetItem(ctx context.Context, in *wrapperspb.UInt64Value, opts ...grpc.CallOption) (*Item, error)
+	AddListItem(ctx context.Context, opts ...grpc.CallOption) (Catalogue_AddListItemClient, error)
 }
 
 type catalogueClient struct {
@@ -53,12 +54,44 @@ func (c *catalogueClient) GetItem(ctx context.Context, in *wrapperspb.UInt64Valu
 	return out, nil
 }
 
+func (c *catalogueClient) AddListItem(ctx context.Context, opts ...grpc.CallOption) (Catalogue_AddListItemClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Catalogue_ServiceDesc.Streams[0], "/pmg_pb.Catalogue/addListItem", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &catalogueAddListItemClient{stream}
+	return x, nil
+}
+
+type Catalogue_AddListItemClient interface {
+	Send(*Item) error
+	Recv() (*wrapperspb.UInt64Value, error)
+	grpc.ClientStream
+}
+
+type catalogueAddListItemClient struct {
+	grpc.ClientStream
+}
+
+func (x *catalogueAddListItemClient) Send(m *Item) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *catalogueAddListItemClient) Recv() (*wrapperspb.UInt64Value, error) {
+	m := new(wrapperspb.UInt64Value)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // CatalogueServer is the server API for Catalogue service.
 // All implementations must embed UnimplementedCatalogueServer
 // for forward compatibility
 type CatalogueServer interface {
 	AddItem(context.Context, *Item) (*wrapperspb.UInt64Value, error)
 	GetItem(context.Context, *wrapperspb.UInt64Value) (*Item, error)
+	AddListItem(Catalogue_AddListItemServer) error
 	mustEmbedUnimplementedCatalogueServer()
 }
 
@@ -71,6 +104,9 @@ func (UnimplementedCatalogueServer) AddItem(context.Context, *Item) (*wrapperspb
 }
 func (UnimplementedCatalogueServer) GetItem(context.Context, *wrapperspb.UInt64Value) (*Item, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetItem not implemented")
+}
+func (UnimplementedCatalogueServer) AddListItem(Catalogue_AddListItemServer) error {
+	return status.Errorf(codes.Unimplemented, "method AddListItem not implemented")
 }
 func (UnimplementedCatalogueServer) mustEmbedUnimplementedCatalogueServer() {}
 
@@ -121,6 +157,32 @@ func _Catalogue_GetItem_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Catalogue_AddListItem_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CatalogueServer).AddListItem(&catalogueAddListItemServer{stream})
+}
+
+type Catalogue_AddListItemServer interface {
+	Send(*wrapperspb.UInt64Value) error
+	Recv() (*Item, error)
+	grpc.ServerStream
+}
+
+type catalogueAddListItemServer struct {
+	grpc.ServerStream
+}
+
+func (x *catalogueAddListItemServer) Send(m *wrapperspb.UInt64Value) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *catalogueAddListItemServer) Recv() (*Item, error) {
+	m := new(Item)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Catalogue_ServiceDesc is the grpc.ServiceDesc for Catalogue service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -137,6 +199,13 @@ var Catalogue_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Catalogue_GetItem_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "addListItem",
+			Handler:       _Catalogue_AddListItem_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "pb.proto",
 }

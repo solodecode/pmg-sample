@@ -9,6 +9,7 @@ import "google/protobuf/wrappers.proto";
 service Catalogue {
   rpc addItem(Item) returns (google.protobuf.UInt64Value);
   rpc getItem(google.protobuf.UInt64Value) returns (Item);
+  rpc addListItem(stream Item) returns (stream google.protobuf.UInt64Value);
 }
 
 message Item {
