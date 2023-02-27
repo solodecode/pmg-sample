@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"google.golang.org/grpc"
@@ -15,12 +16,33 @@ import (
 
 const address = "127.0.0.1:53452"
 
+type authCreds struct {
+	login    string
+	password string
+}
+
+func (auth authCreds) GetRequestMetadata(ctx context.Context, in ...string) (map[string]string, error) {
+	creds := auth.login + ":" + auth.password
+	enc := base64.StdEncoding.EncodeToString([]byte(creds))
+	return map[string]string{
+		"authorization": enc,
+	}, nil
+}
+
+func (auth authCreds) RequireTransportSecurity() bool {
+	return true
+}
+
 func main() {
 	creds, err := loadTLSCredentials()
 	if err != nil {
 		log.Fatalf("error with loadTls: %v", err)
 	}
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(creds))
+	auth := authCreds{
+		login:    "root",
+		password: "root",
+	}
+	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(creds), grpc.WithPerRPCCredentials(auth))
 	if err != nil {
 		log.Fatalf("did not connect: %v")
 	}
