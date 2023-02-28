@@ -86,7 +86,32 @@ func authorization(header []string) bool {
 	return false
 }
 
+type wrappedStream struct {
+	grpc.ServerStream
+}
+
+func newWrappedStream(s grpc.ServerStream) grpc.ServerStream {
+	return &wrappedStream{s}
+}
+
+func serverStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	log.Println("[stream interceptor] New request from client")
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok {
+		return errMissMetadata
+	}
+	if valid := authorization(md["authorization"]); valid {
+		err := handler(srv, newWrappedStream(stream))
+		if err != nil {
+			log.Printf("server interceptor failed: %v", err)
+			return err
+		}
+	}
+	return nil
+}
+
 func unaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	log.Println("[unary interceptor] New request from client")
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, errMissMetadata
@@ -139,7 +164,11 @@ func main() {
 		log.Fatalf("cannot load tls certs: %v", err)
 	}
 
-	s := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(unaryAuthInterceptor))
+	s := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.UnaryInterceptor(unaryAuthInterceptor),
+		grpc.StreamInterceptor(serverStreamInterceptor),
+	)
 	pb.RegisterCatalogueServer(s, &server{conn: conn})
 	if err = s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
