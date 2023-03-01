@@ -24,7 +24,7 @@ $ docker network create pg-pmg-sample
 ```
 3. Run PostgreSQL:
 ```bash
-docker run --network pg-pmg-sample --name pg -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test -d postgres:latest
+$ docker run --network pg-pmg-sample --name pg -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test -d postgres:latest
 ```
 4. Open PostgreSQL terminal in docker and connect to test database:
 ```bash
