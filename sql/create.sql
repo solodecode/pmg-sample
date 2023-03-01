@@ -1,4 +1,4 @@
-create table employee (
+CREATE TABLE test (
 	id BIGSERIAL NOT NULL,
 	title VARCHAR(100),
 	description TEXT,
