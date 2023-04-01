@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pmg_pb;
 
-option  go_package = "pmg-sample/pb";
+option  go_package = "pmg-sample/pkg/pb";
 
 import "google/protobuf/wrappers.proto";
 
@@ -16,6 +16,6 @@ message Item {
   uint64 id = 1;
   string title = 2;
   string description = 3;
-  float price = 4;
+  double price = 4;
   bool stock = 5;
 }

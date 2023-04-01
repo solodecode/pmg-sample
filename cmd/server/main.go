@@ -6,16 +6,13 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
 	"pmg-sample/internal/server"
 	"pmg-sample/pkg/pb"
 )
 
-const (
-	dbURL = "postgres://yourlogin:yourpass@localhost:5432/yourdbname"
-)
-
 func main() {
-	conn, err := pgx.Connect(context.Background(), dbURL)
+	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("cannot connect to db: %v", err)
 	}

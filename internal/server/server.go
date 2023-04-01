@@ -45,7 +45,7 @@ func (s *Server) AddListItem(stream pb.Catalogue_AddListItemServer) error {
 	// add items in table and return ID's
 	var id wrapperspb.UInt64Value
 	for _, v := range items {
-		if err := s.Conn.QueryRow(stream.Context(), "insert into test (title, description, price, stock) values ($1, $2, $3, $4) returning id", &v.Title, &v.Description, &v.Price, &v.Stock).Scan(&id.Value); err != nil {
+		if err := s.Conn.QueryRow(stream.Context(), "insert into employee (title, description, price, stock) values ($1, $2, $3, $4) returning id", &v.Title, &v.Description, &v.Price, &v.Stock).Scan(&id.Value); err != nil {
 			log.Printf("QueryRow failed: %v", err)
 			return err
 		}
@@ -58,7 +58,7 @@ func (s *Server) AddListItem(stream pb.Catalogue_AddListItemServer) error {
 
 func (s *Server) GetItem(ctx context.Context, id *wrapperspb.UInt64Value) (*pb.Item, error) {
 	resp := &pb.Item{}
-	if err := s.Conn.QueryRow(ctx, "select * from test where id=$1", id.Value).Scan(&resp.Id, &resp.Title, &resp.Description, &resp.Price, &resp.Stock); err != nil {
+	if err := s.Conn.QueryRow(ctx, "select * from employee where id=$1", id.Value).Scan(&resp.Id, &resp.Title, &resp.Description, &resp.Price, &resp.Stock); err != nil {
 		log.Printf("QueryRow failed: %v", err)
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Server) GetItem(ctx context.Context, id *wrapperspb.UInt64Value) (*pb.I
 
 func (s *Server) AddItem(ctx context.Context, item *pb.Item) (*wrapperspb.UInt64Value, error) {
 	var id wrapperspb.UInt64Value
-	if err := s.Conn.QueryRow(ctx, "insert into test (title, description, price, stock) values ($1, $2, $3, $4) returning id", &item.Title, &item.Description, &item.Price, &item.Stock).Scan(&id.Value); err != nil {
+	if err := s.Conn.QueryRow(ctx, "insert into employee (title, description, price, stock) values ($1, $2, $3, $4) returning id", &item.Title, &item.Description, &item.Price, &item.Stock).Scan(&id.Value); err != nil {
 		log.Printf("QueryRow failed: %v", err)
 		return nil, err
 	}
